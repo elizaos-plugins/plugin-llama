@@ -168,14 +168,15 @@ export class LlamaService extends Service {
     this.llama = undefined;
     this.model = undefined;
     this.modelUrl = "https://huggingface.co/NousResearch/Hermes-3-Llama-3.1-8B-GGUF/resolve/main/Hermes-3-Llama-3.1-8B.Q8_0.gguf?download=true";
-    const modelName = "model.gguf";
-    this.modelPath = path.join(process.env.LLAMALOCAL_PATH?.trim() ?? "./", modelName);
-    this.ollamaModel = process.env.OLLAMA_MODEL;
+    
   }
 
   async initialize(runtime: IAgentRuntime): Promise<void> {
+    const modelName = "model.gguf";
     elizaLogger.info("Initializing LlamaService...");
     this.runtime = runtime;
+    this.modelPath = path.join(runtime.getSetting("LLAMALOCAL_PATH").trim() ?? "./", modelName);
+    this.ollamaModel = runtime.getSetting("OLLAMA_MODEL");
   }
 
   private async ensureInitialized() {

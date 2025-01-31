@@ -1,5 +1,5 @@
 {
-  "name": "@elizaos-plugins/plugin-image",
+  "name": "@elizaos-plugins/plugin-llama",
   "version": "0.1.9-alpha.1",
   "type": "module",
   "main": "dist/index.js",
@@ -36,11 +36,10 @@
   "agentConfig": {
     "pluginType": "elizaos:client:1.0.0",
     "pluginParameters": {
-      "OPENAI_API_KEY": {
-        "type": "string",
-        "required": true
+      "LLAMALOCAL_PATH": {
+        "type": "string"
       },
-      "GOOGLE_GENERATIVE_AI_API_KEY": {
+      "OLLAMA_MODEL": {
         "type": "string",
         "required": true
       }

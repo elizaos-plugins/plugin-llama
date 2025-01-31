@@ -1,149 +1,5 @@
-// src/actions/describe-image.ts
-import {
-  composeContext,
-  generateObject,
-  ModelClass,
-  elizaLogger,
-  ServiceType
-} from "@elizaos/core";
-
-// src/templates.ts
-var getFileLocationTemplate = `
-{{recentMessages}}
-
-extract the file location from the users message or the attachment in the message history that they are referring to.
-your job is to infer the correct attachment based on the recent messages, the users most recent message, and the attachments in the message
-image attachments are the result of the users uploads, or images you have created.
-only respond with the file location, no other text.
-typically the file location is in the form of a URL or a file path.
-
-\`\`\`json
-{
-    "fileLocation": "file location text goes here"
-}
-\`\`\`
-`;
-
-// src/types.ts
-import { z } from "zod";
-var FileLocationResultSchema = z.object({
-  fileLocation: z.string().min(1)
-});
-function isFileLocationResult(obj) {
-  return FileLocationResultSchema.safeParse(obj).success;
-}
-
-// src/actions/describe-image.ts
-var describeImage = {
-  name: "DESCRIBE_IMAGE",
-  similes: ["DESCRIBE_PICTURE", "EXPLAIN_PICTURE", "EXPLAIN_IMAGE"],
-  validate: async (_runtime, _message) => {
-    return true;
-  },
-  description: "Describe an image",
-  handler: async (runtime, message, state, _options, callback) => {
-    const getFileLocationContext = composeContext({
-      state,
-      template: getFileLocationTemplate
-    });
-    const fileLocationResultObject = await generateObject({
-      runtime,
-      context: getFileLocationContext,
-      modelClass: ModelClass.SMALL,
-      schema: FileLocationResultSchema,
-      stop: ["\n"]
-    });
-    if (!isFileLocationResult(
-      fileLocationResultObject?.object ?? fileLocationResultObject
-    )) {
-      elizaLogger.error("Failed to generate file location");
-      return false;
-    }
-    let fileLocation = fileLocationResultObject?.object?.fileLocation;
-    fileLocation ?? (fileLocation = fileLocationResultObject);
-    const { description } = await runtime.getService(ServiceType.IMAGE_DESCRIPTION).describeImage(fileLocation);
-    runtime.messageManager.createMemory({
-      userId: message.agentId,
-      agentId: message.agentId,
-      roomId: message.roomId,
-      content: {
-        text: description
-      }
-    });
-    callback({
-      text: description
-    });
-    return true;
-  },
-  examples: [
-    [
-      {
-        user: "{{user1}}",
-        content: {
-          text: "Can you describe this image for me?"
-        }
-      },
-      {
-        user: "{{user2}}",
-        content: {
-          text: "Let me analyze this image for you...",
-          action: "DESCRIBE_IMAGE"
-        }
-      },
-      {
-        user: "{{user2}}",
-        content: {
-          text: "I see an orange tabby cat sitting on a windowsill. The cat appears to be relaxed and looking out the window at birds flying by. The lighting suggests it's a sunny afternoon."
-        }
-      }
-    ],
-    [
-      {
-        user: "{{user1}}",
-        content: {
-          text: "What's in this picture?"
-        }
-      },
-      {
-        user: "{{user2}}",
-        content: {
-          text: "I'll take a look at that image...",
-          action: "DESCRIBE_IMAGE"
-        }
-      },
-      {
-        user: "{{user2}}",
-        content: {
-          text: "The image shows a modern kitchen with stainless steel appliances. There's a large island counter in the center with marble countertops. The cabinets are white with sleek handles, and there's pendant lighting hanging above the island."
-        }
-      }
-    ],
-    [
-      {
-        user: "{{user1}}",
-        content: {
-          text: "Could you tell me what this image depicts?"
-        }
-      },
-      {
-        user: "{{user2}}",
-        content: {
-          text: "I'll describe this image for you...",
-          action: "DESCRIBE_IMAGE"
-        }
-      },
-      {
-        user: "{{user2}}",
-        content: {
-          text: "This is a scenic mountain landscape at sunset. The peaks are snow-capped and reflected in a calm lake below. The sky is painted in vibrant oranges and purples, with a few wispy clouds catching the last rays of sunlight."
-        }
-      }
-    ]
-  ]
-};
-
 // src/services/llama.ts
-import { elizaLogger as elizaLogger2, ServiceType as ServiceType2, ModelProviderName } from "@elizaos/core";
+import { elizaLogger, ServiceType, ModelProviderName } from "@elizaos/core";
 import { Service } from "@elizaos/core";
 import fs from "fs";
 import https from "https";
@@ -277,62 +133,62 @@ var LlamaService = class extends Service {
   }
   async initialize(runtime) {
     const modelName = "model.gguf";
-    elizaLogger2.info("Initializing LlamaService...");
+    elizaLogger.info("Initializing LlamaService...");
     this.runtime = runtime;
     this.modelPath = path.join(runtime.getSetting("LLAMALOCAL_PATH").trim() ?? "./", modelName);
     this.ollamaModel = runtime.getSetting("OLLAMA_MODEL");
   }
   async ensureInitialized() {
     if (!this.modelInitialized) {
-      elizaLogger2.info("Model not initialized, starting initialization...");
+      elizaLogger.info("Model not initialized, starting initialization...");
       await this.initializeModel();
     } else {
-      elizaLogger2.info("Model already initialized");
+      elizaLogger.info("Model already initialized");
     }
   }
   async initializeModel() {
     try {
-      elizaLogger2.info("Checking model file...");
+      elizaLogger.info("Checking model file...");
       await this.checkModel();
       const systemInfo = await si.graphics();
       const hasCUDA = systemInfo.controllers.some((controller) => controller.vendor.toLowerCase().includes("nvidia"));
       if (hasCUDA) {
-        elizaLogger2.info("LlamaService: CUDA detected, using GPU acceleration");
+        elizaLogger.info("LlamaService: CUDA detected, using GPU acceleration");
       } else {
-        elizaLogger2.warn("LlamaService: No CUDA detected - local response will be slow");
+        elizaLogger.warn("LlamaService: No CUDA detected - local response will be slow");
       }
-      elizaLogger2.info("Initializing Llama instance...");
+      elizaLogger.info("Initializing Llama instance...");
       this.llama = await getLlama({
         gpu: hasCUDA ? "cuda" : void 0
       });
-      elizaLogger2.info("Creating JSON schema grammar...");
+      elizaLogger.info("Creating JSON schema grammar...");
       const grammar = new LlamaJsonSchemaGrammar(this.llama, jsonSchemaGrammar);
       this.grammar = grammar;
-      elizaLogger2.info("Loading model...");
+      elizaLogger.info("Loading model...");
       this.model = await this.llama.loadModel({
         modelPath: this.modelPath
       });
-      elizaLogger2.info("Creating context and sequence...");
+      elizaLogger.info("Creating context and sequence...");
       this.ctx = await this.model.createContext({ contextSize: 8192 });
       this.sequence = this.ctx.getSequence();
       this.modelInitialized = true;
-      elizaLogger2.success("Model initialization complete");
+      elizaLogger.success("Model initialization complete");
       this.processQueue();
     } catch (error) {
-      elizaLogger2.error("Model initialization failed. Deleting model and retrying:", error);
+      elizaLogger.error("Model initialization failed. Deleting model and retrying:", error);
       try {
-        elizaLogger2.info("Attempting to delete and re-download model...");
+        elizaLogger.info("Attempting to delete and re-download model...");
         await this.deleteModel();
         await this.initializeModel();
       } catch (retryError) {
-        elizaLogger2.error("Model re-initialization failed:", retryError);
+        elizaLogger.error("Model re-initialization failed:", retryError);
         throw new Error(`Model initialization failed after retry: ${retryError.message}`);
       }
     }
   }
   async checkModel() {
     if (!fs.existsSync(this.modelPath)) {
-      elizaLogger2.info("Model file not found, starting download...");
+      elizaLogger.info("Model file not found, starting download...");
       await new Promise((resolve, reject) => {
         const file = fs.createWriteStream(this.modelPath);
         let downloadedSize = 0;
@@ -340,7 +196,7 @@ var LlamaService = class extends Service {
         const downloadModel = (url) => {
           https.get(url, (response) => {
             if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-              elizaLogger2.info(`Following redirect to: ${response.headers.location}`);
+              elizaLogger.info(`Following redirect to: ${response.headers.location}`);
               downloadModel(response.headers.location);
               return;
             }
@@ -349,9 +205,9 @@ var LlamaService = class extends Service {
               return;
             }
             totalSize = Number.parseInt(response.headers["content-length"] || "0", 10);
-            elizaLogger2.info(`Downloading model: Hermes-3-Llama-3.1-8B.Q8_0.gguf`);
-            elizaLogger2.info(`Download location: ${this.modelPath}`);
-            elizaLogger2.info(`Total size: ${(totalSize / 1024 / 1024).toFixed(2)} MB`);
+            elizaLogger.info(`Downloading model: Hermes-3-Llama-3.1-8B.Q8_0.gguf`);
+            elizaLogger.info(`Download location: ${this.modelPath}`);
+            elizaLogger.info(`Total size: ${(totalSize / 1024 / 1024).toFixed(2)} MB`);
             response.pipe(file);
             let progressString = "";
             response.on("data", (chunk) => {
@@ -359,12 +215,12 @@ var LlamaService = class extends Service {
               const progress = totalSize > 0 ? (downloadedSize / totalSize * 100).toFixed(1) : "0.0";
               const dots = ".".repeat(Math.floor(Number(progress) / 5));
               progressString = `Downloading model: [${dots.padEnd(20, " ")}] ${progress}%`;
-              elizaLogger2.progress(progressString);
+              elizaLogger.progress(progressString);
             });
             file.on("finish", () => {
               file.close();
-              elizaLogger2.progress("");
-              elizaLogger2.success("Model download complete");
+              elizaLogger.progress("");
+              elizaLogger.success("Model download complete");
               resolve();
             });
             response.on("error", (error) => {
@@ -387,7 +243,7 @@ var LlamaService = class extends Service {
         });
       });
     } else {
-      elizaLogger2.warn("Model already exists.");
+      elizaLogger.warn("Model already exists.");
     }
   }
   async deleteModel() {
@@ -455,7 +311,7 @@ var LlamaService = class extends Service {
       }
       return await this.localCompletion(prompt);
     } catch (error) {
-      elizaLogger2.error("Error in completion:", error);
+      elizaLogger.error("Error in completion:", error);
       throw error;
     }
   }
@@ -467,7 +323,7 @@ var LlamaService = class extends Service {
       }
       return await this.localEmbedding(text);
     } catch (error) {
-      elizaLogger2.error("Error in embedding:", error);
+      elizaLogger.error("Error in embedding:", error);
       throw error;
     }
   }
@@ -476,7 +332,7 @@ var LlamaService = class extends Service {
     const ollamaModel = process.env.OLLAMA_MODEL;
     if (ollamaModel) {
       const ollamaUrl = process.env.OLLAMA_SERVER_URL || "http://localhost:11434";
-      elizaLogger2.info(`Using Ollama API at ${ollamaUrl} with model ${ollamaModel}`);
+      elizaLogger.info(`Using Ollama API at ${ollamaUrl} with model ${ollamaModel}`);
       const response2 = await fetch(`${ollamaUrl}/api/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -539,7 +395,7 @@ var LlamaService = class extends Service {
         await this.sequence.clearHistory();
         return parsedResponse;
       } catch (error) {
-        elizaLogger2.error("Error parsing JSON:", error);
+        elizaLogger.error("Error parsing JSON:", error);
       }
     } else {
       await this.sequence.clearHistory();
@@ -551,7 +407,7 @@ var LlamaService = class extends Service {
     if (ollamaModel) {
       const ollamaUrl2 = process.env.OLLAMA_SERVER_URL || "http://localhost:11434";
       const embeddingModel2 = process.env.OLLAMA_EMBEDDING_MODEL || "mxbai-embed-large";
-      elizaLogger2.info(`Using Ollama API for embeddings with model ${embeddingModel2} (base: ${ollamaModel})`);
+      elizaLogger.info(`Using Ollama API for embeddings with model ${embeddingModel2} (base: ${ollamaModel})`);
       const response2 = await fetch(`${ollamaUrl2}/api/embeddings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -571,7 +427,7 @@ var LlamaService = class extends Service {
     }
     const ollamaUrl = process.env.OLLAMA_SERVER_URL || "http://localhost:11434";
     const embeddingModel = process.env.OLLAMA_EMBEDDING_MODEL || "mxbai-embed-large";
-    elizaLogger2.info(`Using Ollama API for embeddings with model ${embeddingModel} (base: ${this.ollamaModel})`);
+    elizaLogger.info(`Using Ollama API for embeddings with model ${embeddingModel} (base: ${this.ollamaModel})`);
     const response = await fetch(`${ollamaUrl}/api/embeddings`, {
       method: "POST",
       headers: {
@@ -591,7 +447,7 @@ var LlamaService = class extends Service {
   async ollamaCompletion(prompt) {
     const ollamaModel = process.env.OLLAMA_MODEL;
     const ollamaUrl = process.env.OLLAMA_SERVER_URL || "http://localhost:11434";
-    elizaLogger2.info(`Using Ollama API at ${ollamaUrl} with model ${ollamaModel}`);
+    elizaLogger.info(`Using Ollama API at ${ollamaUrl} with model ${ollamaModel}`);
     const response = await fetch(`${ollamaUrl}/api/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -618,7 +474,7 @@ var LlamaService = class extends Service {
     const ollamaModel = process.env.OLLAMA_MODEL;
     const ollamaUrl = process.env.OLLAMA_SERVER_URL || "http://localhost:11434";
     const embeddingModel = process.env.OLLAMA_EMBEDDING_MODEL || "mxbai-embed-large";
-    elizaLogger2.info(`Using Ollama API for embeddings with model ${embeddingModel} (base: ${ollamaModel})`);
+    elizaLogger.info(`Using Ollama API for embeddings with model ${embeddingModel} (base: ${ollamaModel})`);
     const response = await fetch(`${ollamaUrl}/api/embeddings`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -653,13 +509,13 @@ var LlamaService = class extends Service {
     })) {
       const current = this.model.detokenize([...responseTokens, token]);
       if (current.includes("\n")) {
-        elizaLogger2.info("Stop sequence found");
+        elizaLogger.info("Stop sequence found");
         break;
       }
       responseTokens.push(token);
       process.stdout.write(this.model.detokenize([token]));
       if (responseTokens.length > 256) {
-        elizaLogger2.info("Max tokens reached");
+        elizaLogger.info("Max tokens reached");
         break;
       }
     }
@@ -679,14 +535,14 @@ var LlamaService = class extends Service {
     return embedding?.vector ? [...embedding.vector] : void 0;
   }
 };
-LlamaService.serviceType = ServiceType2.TEXT_GENERATION;
+LlamaService.serviceType = ServiceType.TEXT_GENERATION;
 
 // src/index.ts
 var imagePlugin = {
   name: "default",
   description: "Default plugin, with basic actions and evaluators",
   services: [new LlamaService()],
-  actions: [describeImage]
+  actions: []
 };
 var index_default = imagePlugin;
 export {

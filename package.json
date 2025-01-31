@@ -25,9 +25,6 @@
     "build": "tsup --format esm --dts",
     "dev": "tsup --format esm --dts --watch"
   },
-  "peerDependencies": {
-    "whatwg-url": "7.1.0"
-  },
   "trustedDependencies": {
     "sharp": "0.33.5"
   },
